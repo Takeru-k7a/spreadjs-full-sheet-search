@@ -1,5 +1,11 @@
 'use client';
 
+/**
+ * このファイルは画面に表示される検索 UI の本体です。
+ * ここには固定トリガーボタン、モードレス検索ダイアログ、
+ * ドラッグ移動、検索条件入力、結果一覧、結果クリック時のジャンプ処理を書いています。
+ */
+
 import type * as GC from '@grapecity/spread-sheets';
 import type { CSSProperties, KeyboardEvent, PointerEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
@@ -17,10 +23,15 @@ import { findNextInWorkbook, jumpToHit, searchAllSheets } from './spread-search'
 import styles from './spreadSearch.module.css';
 
 export type SpreadSearchProps = {
+  /** 呼び出し時点の Workbook を返す getter。ホスト側で Workbook を useRef 等に保持して渡します。 */
   getSpread: () => GC.Spread.Sheets.Workbook | null | undefined;
+  /** true の場合、画面右下に検索ダイアログを開く固定ボタンを表示します。 */
   showTrigger?: boolean;
+  /** 固定トリガーボタンに表示する文字列です。 */
   triggerLabel?: string;
+  /** 全件検索で返す最大件数です。超えた場合は打ち切りメッセージを出します。 */
   maxResults?: number;
+  /** 既存画面より前面に出すための z-index です。 */
   zIndex?: number;
 };
 
@@ -44,6 +55,10 @@ function classNames(...values: Array<string | false | null | undefined>): string
   return values.filter(Boolean).join(' ');
 }
 
+/**
+ * ホスト画面に 1 タグ追加するためのコンポーネントです。
+ * 状態は searchStore.ts に置き、検索処理は spread-search.ts に委譲します。
+ */
 export function SpreadSearch({
   getSpread,
   showTrigger = true,
@@ -57,6 +72,7 @@ export function SpreadSearch({
   const dragStateRef = useRef<DragState | null>(null);
   const [position, setPosition] = useState<DialogPosition>({ x: 96, y: 72 });
 
+  // ダイアログを開いた直後に検索文字列へフォーカスします。
   useEffect(() => {
     if (!state.isOpen) {
       return;
@@ -81,6 +97,7 @@ export function SpreadSearch({
     };
   }
 
+  // タイトルバーの pointer イベントだけで、外部ライブラリなしのドラッグ移動を実装します。
   function handleTitlePointerDown(event: PointerEvent<HTMLDivElement>): void {
     event.currentTarget.setPointerCapture(event.pointerId);
     dragStateRef.current = {
@@ -123,6 +140,7 @@ export function SpreadSearch({
     return spread;
   }
 
+  // 全件検索は検索結果リストを更新します。
   function handleSearchAll(): void {
     const spread = getReadySpread();
     if (!spread) {
@@ -139,6 +157,7 @@ export function SpreadSearch({
     });
   }
 
+  // 次を検索は検索結果リストを変更せず、現在のアクティブセルの次から直接ジャンプします。
   function handleFindNext(): void {
     const spread = getReadySpread();
     if (!spread) {
@@ -155,6 +174,7 @@ export function SpreadSearch({
     setSearchMessage(jumpResult.message);
   }
 
+  // 結果行クリックでは、検索時点のスナップショット位置へ再検証なしでジャンプします。
   function handleResultClick(index: number): void {
     const spread = getReadySpread();
     if (!spread || !state.results) {

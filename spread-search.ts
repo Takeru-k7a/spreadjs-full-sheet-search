@@ -1,5 +1,11 @@
 'use client';
 
+/**
+ * このファイルは SpreadJS Workbook を実際に走査する検索エンジンです。
+ * 全シート全件検索、アクティブセル起点の「次を検索」、
+ * 検索結果からのセルジャンプ処理をここに集約しています。
+ */
+
 import * as GC from '@grapecity/spread-sheets';
 import type { SearchHit, SearchOptions } from './searchStore';
 import { matchesSearch, toA1Address } from './textNormalize';
@@ -38,6 +44,7 @@ type SheetPosition = {
 
 const DEFAULT_MAX_RESULTS = 1000;
 
+// SpreadJS の used range オブジェクトを strict TypeScript で安全に扱うための型ガードです。
 function isUsedRangeSnapshot(value: unknown): value is UsedRangeSnapshot {
   if (!value || typeof value !== 'object') {
     return false;
@@ -102,6 +109,7 @@ function getActivePosition(spread: Workbook): SheetPosition {
   };
 }
 
+// getText の表示文字列を対象に、全シートをシート順・行方向順で走査します。
 function* scanWorkbook(
   spread: Workbook,
   query: string,
@@ -144,6 +152,7 @@ function* scanWorkbook(
   }
 }
 
+// 全件検索は結果一覧を作るための処理です。maxResults 到達時はそこで打ち切ります。
 export function searchAllSheets(
   spread: Workbook,
   query: string,
@@ -180,6 +189,7 @@ export function searchAllSheets(
   };
 }
 
+// 次を検索は結果一覧とは独立し、現在のアクティブセルの次から一周だけ探します。
 export function findNextInWorkbook(
   spread: Workbook,
   query: string,
@@ -208,6 +218,7 @@ export function findNextInWorkbook(
     : { hit: null, message: '見つかりません。' };
 }
 
+// 結果行クリックや次を検索で使う共通ジャンプ処理です。
 export function jumpToHit(spread: Workbook, hit: SearchHit): JumpResult {
   const sheet = spread.getSheet(hit.sheetIndex);
 

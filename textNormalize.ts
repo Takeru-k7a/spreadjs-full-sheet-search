@@ -1,7 +1,14 @@
 'use client';
 
+/**
+ * このファイルは検索時の文字列比較ユーティリティです。
+ * 半角全角を区別しない検索のための幅変換、大小文字の正規化、
+ * セル番地を A1 形式へ変換する処理を書いています。
+ */
+
 import type { SearchOptions } from './searchStore';
 
+// 半角カタカナを全角カタカナへ寄せる対応表です。ひらがなとカタカナは相互変換しません。
 const halfWidthKanaMap: Record<string, string> = {
   '｡': '。',
   '｢': '「',
@@ -102,6 +109,7 @@ const handakutenMap: Record<string, string> = {
   ホ: 'ポ',
 };
 
+// NFKC は使わず、Excel の検索に近い幅変換だけを自前で行います。
 export function toWidthInsensitive(input: string): string {
   const output: string[] = [];
 
@@ -147,6 +155,7 @@ export function toWidthInsensitive(input: string): string {
   return output.join('');
 }
 
+// 比較前に、半角全角区別と大文字小文字区別のオプションを反映します。
 export function normalizeForSearch(input: string, options: SearchOptions): string {
   let text = input;
 
@@ -161,6 +170,7 @@ export function normalizeForSearch(input: string, options: SearchOptions): strin
   return text;
 }
 
+// 完全一致 ON/OFF の判定をここに集約し、全件検索と次を検索で共有します。
 export function matchesSearch(text: string, query: string, options: SearchOptions): boolean {
   const normalizedText = normalizeForSearch(text, options);
   const normalizedQuery = normalizeForSearch(query, options);
@@ -172,6 +182,7 @@ export function matchesSearch(text: string, query: string, options: SearchOption
   return normalizedText.includes(normalizedQuery);
 }
 
+// 0-based の列番号を A, B, ..., AA のような Excel 形式へ変換します。
 export function columnIndexToName(columnIndex: number): string {
   if (!Number.isInteger(columnIndex) || columnIndex < 0) {
     return '';
@@ -189,6 +200,7 @@ export function columnIndexToName(columnIndex: number): string {
   return columnName;
 }
 
+// 0-based の行・列番号を B12 のような A1 形式へ変換します。
 export function toA1Address(row: number, column: number): string {
   const columnName = columnIndexToName(column);
   return columnName ? `${columnName}${row + 1}` : '';

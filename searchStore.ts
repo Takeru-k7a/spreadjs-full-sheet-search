@@ -1,5 +1,11 @@
 'use client';
 
+/**
+ * このファイルは検索 UI の状態を保持する同梱ミニストアです。
+ * React 以外の状態管理ライブラリを使わず、モジュールスコープの singleton と
+ * useSyncExternalStore だけで、開閉状態、検索条件、結果一覧、選択行、メッセージを管理します。
+ */
+
 import { useSyncExternalStore } from 'react';
 
 export type SearchOptions = {
@@ -30,6 +36,7 @@ export type SearchState = {
 
 type Listener = () => void;
 
+// Excel 相当の初期値として、完全一致・半角全角区別・大文字小文字区別はすべて OFF です。
 const defaultOptions: SearchOptions = {
   exactMatch: false,
   matchByte: false,
@@ -49,6 +56,7 @@ let currentState: SearchState = {
 
 const listeners = new Set<Listener>();
 
+// currentState を差し替えたあと、購読中の React コンポーネントへ更新通知します。
 function emitChange(): void {
   listeners.forEach((listener) => listener());
 }
@@ -73,6 +81,7 @@ export function useSpreadSearchStore(): SearchState {
   return useSyncExternalStore(subscribeSearchStore, getSearchSnapshot, getSearchSnapshot);
 }
 
+// ここから下はホストアプリや SpreadSearch.tsx から呼ぶ状態更新 API です。
 export function openSpreadSearch(): void {
   updateState((state) => ({ ...state, isOpen: true }));
 }

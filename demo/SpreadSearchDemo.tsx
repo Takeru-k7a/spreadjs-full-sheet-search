@@ -1,5 +1,11 @@
 'use client';
 
+/**
+ * このファイルは動作確認用の最小デモページです。
+ * 複数シート、半角全角、大文字小文字、完全一致、maxResults 打ち切りを
+ * 手元で確認できるサンプル Workbook を作ります。
+ */
+
 import * as GC from '@grapecity/spread-sheets';
 import { useCallback, useRef } from 'react';
 import { openSpreadSearch, SpreadSearch } from '../index';
@@ -7,6 +13,7 @@ import { openSpreadSearch, SpreadSearch } from '../index';
 type Workbook = GC.Spread.Sheets.Workbook;
 type Worksheet = GC.Spread.Sheets.Worksheet;
 
+// デモ用シートへ二次元配列を流し込み、最低限の行列数と列幅を整えます。
 function setSheetData(sheet: Worksheet, name: string, values: unknown[][]): void {
   sheet.name(name);
   sheet.setRowCount(Math.max(values.length + 4, 24));
@@ -18,6 +25,7 @@ function setSheetData(sheet: Worksheet, name: string, values: unknown[][]): void
   sheet.setColumnWidth(3, 180);
 }
 
+// 受け入れ条件を確認しやすいよう、検索パターン別のシートを作ります。
 function fillDemoWorkbook(workbook: Workbook): void {
   workbook.suspendPaint();
 
@@ -66,6 +74,7 @@ function fillDemoWorkbook(workbook: Workbook): void {
   workbook.resumePaint();
 }
 
+// README の例として使える、Workbook getter と SpreadSearch の最小構成です。
 export function SpreadSearchDemo() {
   const spreadRef = useRef<Workbook | null>(null);
 
