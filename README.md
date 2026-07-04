@@ -6,12 +6,12 @@ React 18+ と `@grapecity/spread-sheets` だけに依存する自己完結フォ
 
 ```text
 spread-search/
+  package.json
   index.ts
   SpreadSearch.tsx
   searchStore.ts
   spreadSearchEngine.ts
   textNormalize.ts
-  spreadSearch.module.css
   README.md
   demo/SpreadSearchDemo.tsx
 ```
@@ -22,10 +22,18 @@ spread-search/
 
 - React 18 以上
 - `@grapecity/spread-sheets` v18 系
-- CSS Modules を読み込める React/Next.js/Vite 等の環境
+- `@mui/material`
+- `@emotion/react`
+- `@emotion/styled`
 - Workbook はホスト側で作成済みで、`getSpread` から返す
 
-コンポーネント内では `new GC.Spread.Sheets.Workbook(...)` を行いません。既存ストア、UI ライブラリ、Tailwind、Redux、Zustand、localStorage には依存しません。
+コンポーネント内では `new GC.Spread.Sheets.Workbook(...)` を行いません。既存ストア、Tailwind、Redux、Zustand、localStorage には依存しません。UI は MUI Material を使います。
+
+未導入の場合はホストアプリ側で追加してください。
+
+```bash
+npm install @mui/material @emotion/react @emotion/styled
+```
 
 ## 置き方
 

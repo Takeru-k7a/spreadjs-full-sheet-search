@@ -1,0 +1,30 @@
+{
+  "name": "spreadjs-full-sheet-search",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "peerDependencies": {
+    "@emotion/react": "^11.0.0",
+    "@emotion/styled": "^11.0.0",
+    "@grapecity/spread-sheets": "^18.0.0",
+    "@mui/material": "^5.0.0 || ^6.0.0 || ^7.0.0",
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "description": "React 18+ と `@grapecity/spread-sheets` だけに依存する自己完結フォルダです。フォルダごとコピーし、既存画面の JSX に `SpreadSearch` を 1 タグ追加すると、全シート検索、結果一覧、セルジャンプ、モードレスな検索ダイアログを使えます。",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Takeru-k7a/spreadjs-full-sheet-search.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Takeru-k7a/spreadjs-full-sheet-search/issues"
+  },
+  "homepage": "https://github.com/Takeru-k7a/spreadjs-full-sheet-search#readme"
+}

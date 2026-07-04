@@ -7,6 +7,23 @@
  */
 
 import type * as GC from '@grapecity/spread-sheets';
+import {
+  Box,
+  Button,
+  Checkbox,
+  FormControlLabel,
+  IconButton,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from '@mui/material';
 import type { CSSProperties, KeyboardEvent, PointerEvent } from 'react';
 import { useEffect, useRef } from 'react';
 import {
@@ -22,7 +39,6 @@ import {
   useSpreadSearchStore,
 } from './searchStore';
 import { findNextInWorkbook, jumpToHit, searchAllSheets, type SearchRuntimeOptions } from './spreadSearchEngine';
-import styles from './spreadSearch.module.css';
 
 export type SpreadSearchProps = {
   /** 呼び出し時点の Workbook を返す getter。ホスト側で Workbook を useRef 等に保持して渡します。 */
@@ -59,10 +75,6 @@ type DragState = {
 
 const DEFAULT_MAX_RESULTS = 1000;
 const DEFAULT_Z_INDEX = 1000;
-
-function classNames(...values: Array<string | false | null | undefined>): string {
-  return values.filter(Boolean).join(' ');
-}
 
 /**
  * ホスト画面に 1 タグ追加するためのコンポーネントです。
@@ -284,155 +296,211 @@ export function SpreadSearch({
   return (
     <>
       {showTrigger ? (
-        <button
-          className={styles['sjs-search-trigger']}
+        <Button
+          size="small"
+          variant="outlined"
           onClick={() => openSpreadSearch()}
-          style={triggerStyle}
+          sx={{
+            position: 'fixed',
+            right: 16,
+            bottom: 16,
+            zIndex: triggerStyle.zIndex,
+            minWidth: 72,
+            bgcolor: 'background.paper',
+            boxShadow: 3,
+          }}
           type="button"
         >
           {triggerLabel}
-        </button>
+        </Button>
       ) : null}
 
       {state.isOpen ? (
-        <div
+        <Paper
           aria-label="SpreadJS 全シート検索"
-          className={styles['sjs-search-dialog']}
+          elevation={10}
           ref={dialogRef}
           role="dialog"
-          style={dialogStyle}
+          sx={{
+            position: 'fixed',
+            display: 'grid',
+            gridTemplateRows: 'auto minmax(0, 1fr)',
+            left: dialogStyle.left,
+            top: dialogStyle.top,
+            zIndex: dialogStyle.zIndex,
+            width: 'min(430px, calc(100vw - 16px))',
+            maxHeight: 'calc(100vh - 16px)',
+            overflow: 'hidden',
+            border: 1,
+            borderColor: 'divider',
+            borderRadius: 1,
+          }}
         >
-          <div
-            className={styles['sjs-search-titlebar']}
+          <Box
             onPointerDown={handleTitlePointerDown}
             onPointerMove={handleTitlePointerMove}
             onPointerUp={handleTitlePointerUp}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              minHeight: 40,
+              px: 1.5,
+              py: 0.5,
+              borderBottom: 1,
+              borderColor: 'divider',
+              bgcolor: 'grey.100',
+              cursor: 'grab',
+              userSelect: 'none',
+              touchAction: 'none',
+              '&:active': {
+                cursor: 'grabbing',
+              },
+            }}
           >
-            <span>検索</span>
-            <button
+            <Typography component="h2" variant="subtitle1" sx={{ fontWeight: 700 }}>
+              検索
+            </Typography>
+            <IconButton
               aria-label="検索を閉じる"
-              className={styles['sjs-search-close-button']}
               onClick={closeSpreadSearch}
+              size="small"
               type="button"
             >
               ×
-            </button>
-          </div>
+            </IconButton>
+          </Box>
 
-          <div className={styles['sjs-search-body']}>
-            <label className={styles['sjs-search-field']}>
-              <span>検索する文字列</span>
-              <input
-                className={styles['sjs-search-input']}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                onKeyDown={handleQueryKeyDown}
-                ref={queryInputRef}
-                type="text"
-                value={state.query}
+          <Stack spacing={1.25} sx={{ minHeight: 0, p: 1.5, overflow: 'auto' }}>
+            <TextField
+              inputRef={queryInputRef}
+              label="検索する文字列"
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onKeyDown={handleQueryKeyDown}
+              size="small"
+              type="text"
+              value={state.query}
+              fullWidth
+            />
+
+            <Stack spacing={0.25}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={state.options.exactMatch}
+                    onChange={(event) => setSearchOption('exactMatch', event.target.checked)}
+                    size="small"
+                  />
+                }
+                label="完全一致"
               />
-            </label>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={state.options.matchByte}
+                    onChange={(event) => setSearchOption('matchByte', event.target.checked)}
+                    size="small"
+                  />
+                }
+                label="半角と全角を区別する"
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={state.options.matchCase}
+                    onChange={(event) => setSearchOption('matchCase', event.target.checked)}
+                    size="small"
+                  />
+                }
+                label="大文字と小文字を区別する"
+              />
+            </Stack>
 
-            <div className={styles['sjs-search-options']}>
-              <label className={styles['sjs-search-checkbox-row']}>
-                <input
-                  checked={state.options.exactMatch}
-                  onChange={(event) => setSearchOption('exactMatch', event.target.checked)}
-                  type="checkbox"
-                />
-                <span>完全一致</span>
-              </label>
-              <label className={styles['sjs-search-checkbox-row']}>
-                <input
-                  checked={state.options.matchByte}
-                  onChange={(event) => setSearchOption('matchByte', event.target.checked)}
-                  type="checkbox"
-                />
-                <span>半角と全角を区別する</span>
-              </label>
-              <label className={styles['sjs-search-checkbox-row']}>
-                <input
-                  checked={state.options.matchCase}
-                  onChange={(event) => setSearchOption('matchCase', event.target.checked)}
-                  type="checkbox"
-                />
-                <span>大文字と小文字を区別する</span>
-              </label>
-            </div>
-
-            <div className={styles['sjs-search-actions']}>
-              <button
-                className={styles['sjs-search-primary-button']}
-                onClick={handleSearchAll}
-                type="button"
-              >
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              <Button onClick={handleSearchAll} type="button" variant="contained">
                 全件検索
-              </button>
-              <button
-                className={styles['sjs-search-secondary-button']}
-                onClick={handleFindNext}
-                type="button"
-              >
+              </Button>
+              <Button onClick={handleFindNext} type="button" variant="outlined">
                 次を検索
-              </button>
-              <button
-                className={styles['sjs-search-secondary-button']}
-                onClick={closeSpreadSearch}
-                type="button"
-              >
+              </Button>
+              <Button onClick={closeSpreadSearch} type="button" variant="outlined">
                 閉じる
-              </button>
-            </div>
+              </Button>
+            </Box>
 
             {state.message ? (
-              <div className={styles['sjs-search-message']} role="status">
+              <Paper
+                role="status"
+                variant="outlined"
+                sx={{
+                  px: 1,
+                  py: 0.75,
+                  bgcolor: 'warning.50',
+                  borderColor: 'warning.light',
+                  color: 'warning.dark',
+                }}
+              >
                 {state.message}
-              </div>
+              </Paper>
             ) : null}
 
-            <section className={styles['sjs-search-results']}>
-              <div className={styles['sjs-search-results-heading']}>
-                <span>検索結果</span>
-                <span>{state.results === null ? '未検索' : `${resultCount}件`}</span>
-              </div>
+            <Box component="section" sx={{ display: 'grid', gap: 0.75, minHeight: 0, pt: 0.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  検索結果
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {state.results === null ? '未検索' : `${resultCount}件`}
+                </Typography>
+              </Box>
 
-              <div className={styles['sjs-search-table-wrap']}>
-                <table className={styles['sjs-search-table']}>
-                  <thead>
-                    <tr>
-                      <th scope="col">シート名</th>
-                      <th scope="col">セル</th>
-                      <th scope="col">値</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+              <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 230 }}>
+                <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ width: '34%', fontWeight: 700 }}>シート名</TableCell>
+                      <TableCell sx={{ width: 72, fontWeight: 700 }}>セル</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>値</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                     {state.results && state.results.length > 0 ? (
                       state.results.map((hit, index) => (
-                        <tr
-                          className={classNames(
-                            styles['sjs-search-result-row'],
-                            state.selectedIndex === index && styles['sjs-search-result-row-selected'],
-                          )}
+                        <TableRow
+                          hover
                           key={`${hit.sheetIndex}:${hit.row}:${hit.col}:${index}`}
                           onClick={() => handleResultClick(index)}
+                          selected={state.selectedIndex === index}
+                          sx={{ cursor: 'pointer' }}
                         >
-                          <td title={hit.sheetName}>{hit.sheetName}</td>
-                          <td>{hit.address}</td>
-                          <td title={hit.text}>{hit.text}</td>
-                        </tr>
+                          <TableCell
+                            title={hit.sheetName}
+                            sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          >
+                            {hit.sheetName}
+                          </TableCell>
+                          <TableCell>{hit.address}</TableCell>
+                          <TableCell
+                            title={hit.text}
+                            sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          >
+                            {hit.text}
+                          </TableCell>
+                        </TableRow>
                       ))
                     ) : (
-                      <tr>
-                        <td className={styles['sjs-search-empty-cell']} colSpan={3}>
+                      <TableRow>
+                        <TableCell colSpan={3} align="center" sx={{ color: 'text.secondary' }}>
                           {state.results === null ? '検索結果はまだありません。' : '該当するセルはありません。'}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          </div>
-        </div>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          </Stack>
+        </Paper>
       ) : null}
     </>
   );
