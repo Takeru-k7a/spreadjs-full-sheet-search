@@ -9,14 +9,14 @@ spread-search/
   index.ts
   SpreadSearch.tsx
   searchStore.ts
-  spread-search.ts
+  spreadSearchEngine.ts
   textNormalize.ts
   spreadSearch.module.css
   README.md
   demo/SpreadSearchDemo.tsx
 ```
 
-検索エンジンのファイルは `spread-search.ts` です。Windows などの大文字小文字を区別しない環境では `SpreadSearch.tsx` と `spreadSearch.ts` が TypeScript の解決順で衝突するため、実利用時に壊れない名前にしています。
+公開入口は `index.ts` です。`spreadSearchEngine.ts` は Workbook を走査する内部ロジックで、`SpreadSearch` コンポーネント自体は `index.ts` から export しています。
 
 ## 前提
 

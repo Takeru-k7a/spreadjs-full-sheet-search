@@ -19,7 +19,7 @@ import {
   setSelectedSearchIndex,
   useSpreadSearchStore,
 } from './searchStore';
-import { findNextInWorkbook, jumpToHit, searchAllSheets } from './spread-search';
+import { findNextInWorkbook, jumpToHit, searchAllSheets } from './spreadSearchEngine';
 import styles from './spreadSearch.module.css';
 
 export type SpreadSearchProps = {
@@ -57,7 +57,7 @@ function classNames(...values: Array<string | false | null | undefined>): string
 
 /**
  * ホスト画面に 1 タグ追加するためのコンポーネントです。
- * 状態は searchStore.ts に置き、検索処理は spread-search.ts に委譲します。
+ * 状態は searchStore.ts に置き、検索処理は spreadSearchEngine.ts に委譲します。
  */
 export function SpreadSearch({
   getSpread,

@@ -18,8 +18,8 @@ export {
   findNextInWorkbook,
   jumpToHit,
   searchAllSheets,
-} from './spread-search';
-export type { FindNextResult, JumpResult, SearchAllResult } from './spread-search';
+} from './spreadSearchEngine';
+export type { FindNextResult, JumpResult, SearchAllResult } from './spreadSearchEngine';
 export {
   columnIndexToName,
   matchesSearch,
