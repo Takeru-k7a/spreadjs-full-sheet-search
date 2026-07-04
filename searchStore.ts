@@ -68,13 +68,22 @@ let currentState: SearchState = {
 
 const listeners = new Set<Listener>();
 
+function arePositionsEqual(a: SearchDialogPosition, b: SearchDialogPosition): boolean {
+  return a.x === b.x && a.y === b.y;
+}
+
 // currentState を差し替えたあと、購読中の React コンポーネントへ更新通知します。
 function emitChange(): void {
   listeners.forEach((listener) => listener());
 }
 
 function updateState(updater: (state: SearchState) => SearchState): void {
-  currentState = updater(currentState);
+  const nextState = updater(currentState);
+  if (Object.is(nextState, currentState)) {
+    return;
+  }
+
+  currentState = nextState;
   emitChange();
 }
 
@@ -120,11 +129,23 @@ export function toggleSpreadSearch(): void {
 }
 
 export function setSpreadSearchPosition(position: SearchDialogPosition): void {
-  updateState((state) => ({ ...state, position }));
+  updateState((state) => {
+    if (arePositionsEqual(state.position, position)) {
+      return state;
+    }
+
+    return { ...state, position };
+  });
 }
 
 export function resetSpreadSearchPosition(): void {
-  updateState((state) => ({ ...state, position: defaultPosition }));
+  updateState((state) => {
+    if (arePositionsEqual(state.position, defaultPosition)) {
+      return state;
+    }
+
+    return { ...state, position: defaultPosition };
+  });
 }
 
 export function setSearchQuery(query: string): void {

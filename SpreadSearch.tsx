@@ -98,6 +98,8 @@ export function SpreadSearch({
   const queryInputRef = useRef<HTMLInputElement | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
+  const dragFrameRef = useRef<number | null>(null);
+  const pendingDragPositionRef = useRef<SearchDialogPosition | null>(null);
   const didApplyInitialPositionRef = useRef(false);
   const runtimeOptions: SearchRuntimeOptions = {
     debug,
@@ -177,9 +179,34 @@ export function SpreadSearch({
     };
   }
 
-  function clearDragListeners(): void {
+  function clearDragListeners(flushPendingPosition = false): void {
+    const pendingPosition = pendingDragPositionRef.current;
     dragCleanupRef.current?.();
     dragCleanupRef.current = null;
+    if (dragFrameRef.current !== null && typeof window !== 'undefined') {
+      window.cancelAnimationFrame(dragFrameRef.current);
+      dragFrameRef.current = null;
+    }
+    pendingDragPositionRef.current = null;
+    if (flushPendingPosition && pendingPosition) {
+      setSpreadSearchPosition(pendingPosition);
+    }
+  }
+
+  function scheduleDragPosition(nextPosition: SearchDialogPosition): void {
+    pendingDragPositionRef.current = nextPosition;
+    if (dragFrameRef.current !== null) {
+      return;
+    }
+
+    dragFrameRef.current = window.requestAnimationFrame(() => {
+      dragFrameRef.current = null;
+      const pendingPosition = pendingDragPositionRef.current;
+      pendingDragPositionRef.current = null;
+      if (pendingPosition) {
+        setSpreadSearchPosition(pendingPosition);
+      }
+    });
   }
 
   // pointer capture に依存せず、window 側で移動を追跡してドラッグ移動を安定させます。
@@ -210,7 +237,7 @@ export function SpreadSearch({
       }
 
       nativeEvent.preventDefault();
-      setSpreadSearchPosition(
+      scheduleDragPosition(
         clampPosition({
           x: dragState.originX + nativeEvent.clientX - dragState.startClientX,
           y: dragState.originY + nativeEvent.clientY - dragState.startClientY,
@@ -225,7 +252,7 @@ export function SpreadSearch({
       }
 
       dragStateRef.current = null;
-      clearDragListeners();
+      clearDragListeners(true);
     }
 
     window.addEventListener('pointermove', handleWindowPointerMove, true);
