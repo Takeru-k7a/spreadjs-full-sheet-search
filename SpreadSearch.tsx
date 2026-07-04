@@ -11,7 +11,6 @@ import {
   Box,
   Button,
   Checkbox,
-  FormControlLabel,
   IconButton,
   Paper,
   Stack,
@@ -444,36 +443,36 @@ export function SpreadSearch({
             />
 
             <Stack spacing={0.25}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={state.options.exactMatch}
-                    onChange={(event) => setSearchOption('exactMatch', event.target.checked)}
-                    size="small"
-                  />
-                }
-                label="完全一致"
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={state.options.matchByte}
-                    onChange={(event) => setSearchOption('matchByte', event.target.checked)}
-                    size="small"
-                  />
-                }
-                label="半角と全角を区別する"
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={state.options.matchCase}
-                    onChange={(event) => setSearchOption('matchCase', event.target.checked)}
-                    size="small"
-                  />
-                }
-                label="大文字と小文字を区別する"
-              />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <Checkbox
+                  checked={state.options.exactMatch}
+                  inputProps={{ 'aria-label': '完全一致' }}
+                  onChange={(event) => setSearchOption('exactMatch', event.target.checked)}
+                  size="small"
+                  sx={{ p: 0.5 }}
+                />
+                <Typography variant="body2">完全一致</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <Checkbox
+                  checked={state.options.matchByte}
+                  inputProps={{ 'aria-label': '半角と全角を区別する' }}
+                  onChange={(event) => setSearchOption('matchByte', event.target.checked)}
+                  size="small"
+                  sx={{ p: 0.5 }}
+                />
+                <Typography variant="body2">半角と全角を区別する</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <Checkbox
+                  checked={state.options.matchCase}
+                  inputProps={{ 'aria-label': '大文字と小文字を区別する' }}
+                  onChange={(event) => setSearchOption('matchCase', event.target.checked)}
+                  size="small"
+                  sx={{ p: 0.5 }}
+                />
+                <Typography variant="body2">大文字と小文字を区別する</Typography>
+              </Box>
             </Stack>
 
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
