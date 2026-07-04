@@ -97,6 +97,7 @@ export function SpreadSearch({
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const queryInputRef = useRef<HTMLInputElement | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
+  const dragCleanupRef = useRef<(() => void) | null>(null);
   const didApplyInitialPositionRef = useRef(false);
   const runtimeOptions: SearchRuntimeOptions = {
     debug,
@@ -154,6 +155,12 @@ export function SpreadSearch({
     queryInputRef.current?.focus();
   }, [state.isOpen]);
 
+  useEffect(() => {
+    return () => {
+      clearDragListeners();
+    };
+  }, []);
+
   function clampPosition(nextPosition: SearchDialogPosition): SearchDialogPosition {
     if (typeof window === 'undefined') {
       return nextPosition;
@@ -170,9 +177,24 @@ export function SpreadSearch({
     };
   }
 
-  // タイトルバーの pointer イベントだけで、外部ライブラリなしのドラッグ移動を実装します。
+  function clearDragListeners(): void {
+    dragCleanupRef.current?.();
+    dragCleanupRef.current = null;
+  }
+
+  // pointer capture に依存せず、window 側で移動を追跡してドラッグ移動を安定させます。
   function handleTitlePointerDown(event: PointerEvent<HTMLDivElement>): void {
-    event.currentTarget.setPointerCapture(event.pointerId);
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    if (target?.closest('button')) {
+      return;
+    }
+
+    event.preventDefault();
+    clearDragListeners();
     dragStateRef.current = {
       pointerId: event.pointerId,
       startClientX: event.clientX,
@@ -180,27 +202,40 @@ export function SpreadSearch({
       originX: state.position.x,
       originY: state.position.y,
     };
-  }
 
-  function handleTitlePointerMove(event: PointerEvent<HTMLDivElement>): void {
-    const dragState = dragStateRef.current;
-    if (!dragState || dragState.pointerId !== event.pointerId) {
-      return;
+    function handleWindowPointerMove(nativeEvent: globalThis.PointerEvent): void {
+      const dragState = dragStateRef.current;
+      if (!dragState || dragState.pointerId !== nativeEvent.pointerId) {
+        return;
+      }
+
+      nativeEvent.preventDefault();
+      setSpreadSearchPosition(
+        clampPosition({
+          x: dragState.originX + nativeEvent.clientX - dragState.startClientX,
+          y: dragState.originY + nativeEvent.clientY - dragState.startClientY,
+        }),
+      );
     }
 
-    setSpreadSearchPosition(
-      clampPosition({
-        x: dragState.originX + event.clientX - dragState.startClientX,
-        y: dragState.originY + event.clientY - dragState.startClientY,
-      }),
-    );
-  }
+    function handleWindowPointerEnd(nativeEvent: globalThis.PointerEvent): void {
+      const dragState = dragStateRef.current;
+      if (dragState && dragState.pointerId !== nativeEvent.pointerId) {
+        return;
+      }
 
-  function handleTitlePointerUp(event: PointerEvent<HTMLDivElement>): void {
-    const dragState = dragStateRef.current;
-    if (dragState?.pointerId === event.pointerId) {
       dragStateRef.current = null;
+      clearDragListeners();
     }
+
+    window.addEventListener('pointermove', handleWindowPointerMove, true);
+    window.addEventListener('pointerup', handleWindowPointerEnd, true);
+    window.addEventListener('pointercancel', handleWindowPointerEnd, true);
+    dragCleanupRef.current = () => {
+      window.removeEventListener('pointermove', handleWindowPointerMove, true);
+      window.removeEventListener('pointerup', handleWindowPointerEnd, true);
+      window.removeEventListener('pointercancel', handleWindowPointerEnd, true);
+    };
   }
 
   function getReadySpread(): GC.Spread.Sheets.Workbook | null {
@@ -338,8 +373,6 @@ export function SpreadSearch({
         >
           <Box
             onPointerDown={handleTitlePointerDown}
-            onPointerMove={handleTitlePointerMove}
-            onPointerUp={handleTitlePointerUp}
             sx={{
               display: 'flex',
               alignItems: 'center',
