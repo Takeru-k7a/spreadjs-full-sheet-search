@@ -8,7 +8,7 @@
 
 import type * as GC from '@grapecity/spread-sheets';
 import type { CSSProperties, KeyboardEvent, PointerEvent } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   closeSpreadSearch,
   openSpreadSearch,
@@ -17,6 +17,8 @@ import {
   setSearchOption,
   setSearchQuery,
   setSelectedSearchIndex,
+  setSpreadSearchPosition,
+  type SearchDialogPosition,
   useSpreadSearchStore,
 } from './searchStore';
 import { findNextInWorkbook, jumpToHit, searchAllSheets, type SearchRuntimeOptions } from './spreadSearchEngine';
@@ -33,6 +35,8 @@ export type SpreadSearchProps = {
   maxResults?: number;
   /** 既存画面より前面に出すための z-index です。 */
   zIndex?: number;
+  /** 初期表示位置です。未指定時は左上寄りの既定位置に表示します。 */
+  initialPosition?: SearchDialogPosition;
   /** true の場合、検索時のシート数・走査範囲・ヒット数を console に出します。 */
   debug?: boolean;
   /** usedRange が空のとき、sheet の行列数から fallback 走査するかどうかです。 */
@@ -41,11 +45,6 @@ export type SpreadSearchProps = {
   fallbackRowLimit?: number;
   /** fallback 走査時に見る最大列数です。 */
   fallbackColumnLimit?: number;
-};
-
-type DialogPosition = {
-  x: number;
-  y: number;
 };
 
 type DragState = {
@@ -73,6 +72,7 @@ export function SpreadSearch({
   triggerLabel = '検索',
   maxResults = DEFAULT_MAX_RESULTS,
   zIndex = DEFAULT_Z_INDEX,
+  initialPosition,
   debug = false,
   fallbackToSheetRange = true,
   fallbackRowLimit,
@@ -82,13 +82,23 @@ export function SpreadSearch({
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const queryInputRef = useRef<HTMLInputElement | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
-  const [position, setPosition] = useState<DialogPosition>({ x: 96, y: 72 });
+  const didApplyInitialPositionRef = useRef(false);
   const runtimeOptions: SearchRuntimeOptions = {
     debug,
     fallbackToSheetRange,
     fallbackRowLimit,
     fallbackColumnLimit,
   };
+
+  // ホスト側が初期位置を指定した場合、一度だけストアへ反映します。
+  useEffect(() => {
+    if (!initialPosition || didApplyInitialPositionRef.current) {
+      return;
+    }
+
+    didApplyInitialPositionRef.current = true;
+    setSpreadSearchPosition(clampPosition(initialPosition));
+  }, [initialPosition]);
 
   // ダイアログを開いた直後に検索文字列へフォーカスします。
   useEffect(() => {
@@ -99,7 +109,7 @@ export function SpreadSearch({
     queryInputRef.current?.focus();
   }, [state.isOpen]);
 
-  function clampPosition(nextPosition: DialogPosition): DialogPosition {
+  function clampPosition(nextPosition: SearchDialogPosition): SearchDialogPosition {
     if (typeof window === 'undefined') {
       return nextPosition;
     }
@@ -122,8 +132,8 @@ export function SpreadSearch({
       pointerId: event.pointerId,
       startClientX: event.clientX,
       startClientY: event.clientY,
-      originX: position.x,
-      originY: position.y,
+      originX: state.position.x,
+      originY: state.position.y,
     };
   }
 
@@ -133,7 +143,7 @@ export function SpreadSearch({
       return;
     }
 
-    setPosition(
+    setSpreadSearchPosition(
       clampPosition({
         x: dragState.originX + event.clientX - dragState.startClientX,
         y: dragState.originY + event.clientY - dragState.startClientY,
@@ -227,8 +237,8 @@ export function SpreadSearch({
   }
 
   const dialogStyle: CSSProperties = {
-    left: position.x,
-    top: position.y,
+    left: state.position.x,
+    top: state.position.y,
     zIndex,
   };
 
@@ -243,7 +253,7 @@ export function SpreadSearch({
       {showTrigger ? (
         <button
           className={styles['sjs-search-trigger']}
-          onClick={openSpreadSearch}
+          onClick={() => openSpreadSearch()}
           style={triggerStyle}
           type="button"
         >
@@ -336,7 +346,7 @@ export function SpreadSearch({
                 onClick={closeSpreadSearch}
                 type="button"
               >
-                キャンセル
+                閉じる
               </button>
             </div>
 

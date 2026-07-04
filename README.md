@@ -68,13 +68,16 @@ function ExistingScreen() {
 ## 自前ボタンから開く
 
 ```tsx
-import { openSpreadSearch, SpreadSearch } from './components/spread-search';
+import { closeSpreadSearch, openSpreadSearch, SpreadSearch } from './components/spread-search';
 
 function ExistingScreen() {
   return (
     <>
-      <button type="button" onClick={openSpreadSearch}>
+      <button type="button" onClick={() => openSpreadSearch()}>
         検索
+      </button>
+      <button type="button" onClick={() => closeSpreadSearch()}>
+        閉じる
       </button>
 
       <SpreadSearch getSpread={() => spreadRef.current} showTrigger={false} />
@@ -83,7 +86,7 @@ function ExistingScreen() {
 }
 ```
 
-`closeSpreadSearch()` と `toggleSpreadSearch()` も export しています。
+`closeSpreadSearch()`、`toggleSpreadSearch()`、`setSpreadSearchPosition()`、`resetSpreadSearchPosition()` も export しています。
 
 ## Props
 
@@ -94,6 +97,7 @@ type SpreadSearchProps = {
   triggerLabel?: string;   // default: "検索"
   maxResults?: number;     // default: 1000
   zIndex?: number;         // default: 1000
+  initialPosition?: { x: number; y: number };
   debug?: boolean;         // default: false
   fallbackToSheetRange?: boolean; // default: true
   fallbackRowLimit?: number;      // default: 5000
@@ -102,6 +106,14 @@ type SpreadSearchProps = {
 ```
 
 `getSpread()` が `null` または `undefined` を返した場合は、エラーにせず「シートが初期化されていません。」と表示します。
+
+検索ダイアログはタイトルバーをドラッグして移動できます。移動後の位置はストアに残るため、閉じて再度開いても同じ位置に表示されます。初期位置を指定したい場合は次のようにします。
+
+```tsx
+<SpreadSearch getSpread={() => spreadRef.current} initialPosition={{ x: 320, y: 80 }} />
+```
+
+ホスト側のボタンやショートカットから位置を変える場合は `setSpreadSearchPosition({ x, y })`、既定位置に戻す場合は `resetSpreadSearchPosition()` を使います。閉じる場合はダイアログ右上の `×`、下部の「閉じる」、Esc キー、または `closeSpreadSearch()` を使えます。
 
 `debug` を `true` にすると、検索実行時に `console.info` へ Workbook のシート数、各シートの走査範囲、非空セル数、ヒット数を出します。検索結果が出ない画面では、まず次のように一時的に有効化してください。
 

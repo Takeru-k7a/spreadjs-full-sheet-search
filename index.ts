@@ -10,10 +10,12 @@ export { SpreadSearch, type SpreadSearchProps } from './SpreadSearch';
 export {
   closeSpreadSearch,
   openSpreadSearch,
+  resetSpreadSearchPosition,
+  setSpreadSearchPosition,
   toggleSpreadSearch,
   useSpreadSearchStore,
 } from './searchStore';
-export type { SearchHit, SearchOptions, SearchState } from './searchStore';
+export type { SearchDialogPosition, SearchHit, SearchOptions, SearchState } from './searchStore';
 export {
   findNextInWorkbook,
   jumpToHit,

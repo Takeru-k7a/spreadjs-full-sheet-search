@@ -106,7 +106,7 @@ export function SpreadSearchDemo() {
     >
       <header style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' }}>
         <h1 style={{ fontSize: 18, margin: 0 }}>SpreadSearch Demo</h1>
-        <button onClick={openSpreadSearch} type="button">
+        <button onClick={() => openSpreadSearch()} type="button">
           自前ボタンで検索を開く
         </button>
       </header>

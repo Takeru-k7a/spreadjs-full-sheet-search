@@ -23,8 +23,14 @@ export type SearchHit = {
   text: string;
 };
 
+export type SearchDialogPosition = {
+  x: number;
+  y: number;
+};
+
 export type SearchState = {
   isOpen: boolean;
+  position: SearchDialogPosition;
   query: string;
   options: SearchOptions;
   results: SearchHit[] | null;
@@ -43,8 +49,14 @@ const defaultOptions: SearchOptions = {
   matchCase: false,
 };
 
+const defaultPosition: SearchDialogPosition = {
+  x: 96,
+  y: 72,
+};
+
 let currentState: SearchState = {
   isOpen: false,
+  position: defaultPosition,
   query: '',
   options: defaultOptions,
   results: null,
@@ -66,6 +78,15 @@ function updateState(updater: (state: SearchState) => SearchState): void {
   emitChange();
 }
 
+function isSearchDialogPosition(value: unknown): value is SearchDialogPosition {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.x === 'number' && typeof candidate.y === 'number';
+}
+
 export function subscribeSearchStore(listener: Listener): () => void {
   listeners.add(listener);
   return () => {
@@ -82,8 +103,12 @@ export function useSpreadSearchStore(): SearchState {
 }
 
 // ここから下はホストアプリや SpreadSearch.tsx から呼ぶ状態更新 API です。
-export function openSpreadSearch(): void {
-  updateState((state) => ({ ...state, isOpen: true }));
+export function openSpreadSearch(position?: SearchDialogPosition): void {
+  updateState((state) => ({
+    ...state,
+    isOpen: true,
+    position: isSearchDialogPosition(position) ? position : state.position,
+  }));
 }
 
 export function closeSpreadSearch(): void {
@@ -92,6 +117,14 @@ export function closeSpreadSearch(): void {
 
 export function toggleSpreadSearch(): void {
   updateState((state) => ({ ...state, isOpen: !state.isOpen }));
+}
+
+export function setSpreadSearchPosition(position: SearchDialogPosition): void {
+  updateState((state) => ({ ...state, position }));
+}
+
+export function resetSpreadSearchPosition(): void {
+  updateState((state) => ({ ...state, position: defaultPosition }));
 }
 
 export function setSearchQuery(query: string): void {
