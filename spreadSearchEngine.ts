@@ -53,6 +53,11 @@ type SheetPosition = {
   col: number;
 };
 
+type BoundColumnDefinition = {
+  name?: unknown;
+  displayName?: unknown;
+};
+
 const DEFAULT_MAX_RESULTS = 1000;
 const DEFAULT_FALLBACK_ROW_LIMIT = 5000;
 const DEFAULT_FALLBACK_COLUMN_LIMIT = 200;
@@ -96,6 +101,51 @@ function getUsedDataRange(sheet: Worksheet): ScanRangeSnapshot | null {
 function getSheetName(sheet: Worksheet, fallbackIndex: number): string {
   const name = sheet.name();
   return name || `Sheet${fallbackIndex + 1}`;
+}
+
+function isBoundColumnDefinition(value: unknown): value is BoundColumnDefinition {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function getBoundColumns(sheet: Worksheet): BoundColumnDefinition[] {
+  const sheetWithBinding = sheet as Worksheet & {
+    bindColumns?: () => unknown;
+  };
+
+  if (typeof sheetWithBinding.bindColumns !== 'function') {
+    return [];
+  }
+
+  const columns = sheetWithBinding.bindColumns();
+  if (!Array.isArray(columns)) {
+    return [];
+  }
+
+  return columns.map((column) => (isBoundColumnDefinition(column) ? column : {}));
+}
+
+function getBoundColumnName(boundColumns: BoundColumnDefinition[], columnIndex: number): string | null {
+  const column = boundColumns[columnIndex];
+  if (!column) {
+    return null;
+  }
+
+  const name = typeof column.name === 'string' ? column.name : '';
+  if (name) {
+    return name;
+  }
+
+  const displayName = typeof column.displayName === 'string' ? column.displayName : '';
+  return displayName || null;
+}
+
+function toResultAddress(row: number, col: number, boundColumns: BoundColumnDefinition[]): string {
+  const boundColumnName = getBoundColumnName(boundColumns, col);
+  if (boundColumnName) {
+    return `${boundColumnName}[${row}]`;
+  }
+
+  return toA1Address(row, col);
 }
 
 function normalizeMaxResults(maxResults: number | undefined): number {
@@ -242,6 +292,7 @@ function* scanWorkbook(
 
     const rowEnd = scanRange.row + scanRange.rowCount;
     const colEnd = scanRange.col + scanRange.colCount;
+    const boundColumns = getBoundColumns(sheet);
     let scannedCells = 0;
     let nonEmptyCells = 0;
     let hitCount = 0;
@@ -250,6 +301,7 @@ function* scanWorkbook(
       sheetIndex,
       sheetName,
       scanRange,
+      boundColumnCount: boundColumns.length,
       sheetRowCount: sheet.getRowCount(),
       sheetColumnCount: sheet.getColumnCount(),
     });
@@ -273,7 +325,7 @@ function* scanWorkbook(
           sheetName,
           row,
           col,
-          address: toA1Address(row, col),
+          address: toResultAddress(row, col, boundColumns),
           text,
         };
       }

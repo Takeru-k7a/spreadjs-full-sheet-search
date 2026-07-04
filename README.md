@@ -148,6 +148,7 @@ type SpreadSearchProps = {
 - まず `sheet.getUsedRange(GC.Spread.Sheets.UsedRangeType.data)` の範囲を行方向に走査します。
 - 既定では usedRange に加えて、シート行列数の先頭範囲も fallback 走査します。
 - 検索対象は `sheet.getText(row, col)` の表示文字列です。
+- `sheet.bindColumns()` の列定義に `name` がある列は、結果一覧のセル欄を `カラム名[行インデックス]` 形式で表示します。例: `customerName[3]`。列名がない場合は従来どおり `D4` のような A1 形式です。
 - 非表示の行、列、シートも検索対象に含みます。
 - 全件検索の結果は、検索時点のスナップショットとして保持します。
 - 結果行クリック時は、再検索せず記録済みのシート、行、列へジャンプします。
