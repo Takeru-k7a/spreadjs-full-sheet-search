@@ -63,7 +63,17 @@ function ExistingScreen() {
 }
 ```
 
-`showTrigger` の既定値は `true` です。画面右下に固定の「検索」ボタンが表示され、クリックすると検索ダイアログが開きます。
+`showTrigger` の既定値は `true` です。画面右下に固定の「検索」ボタンが表示され、クリックすると検索ダイアログが開きます。`enableShortcut` の既定値も `true` なので、Ctrl+F / Cmd+F でも開けます。
+
+## Ctrl+F だけで使う
+
+画面上の検索ボタンを出したくない場合は `showTrigger={false}` を指定します。この場合でも、既定で Ctrl+F / Cmd+F から検索ダイアログを開けます。
+
+```tsx
+<SpreadSearch getSpread={() => spreadRef.current} showTrigger={false} />
+```
+
+ブラウザ標準検索を優先したい画面では `enableShortcut={false}` を指定してください。
 
 ## 自前ボタンから開く
 
@@ -98,6 +108,7 @@ type SpreadSearchProps = {
   maxResults?: number;     // default: 1000
   zIndex?: number;         // default: 1000
   initialPosition?: { x: number; y: number };
+  enableShortcut?: boolean; // default: true
   debug?: boolean;         // default: false
   fallbackToSheetRange?: boolean; // default: true
   fallbackRowLimit?: number;      // default: 5000

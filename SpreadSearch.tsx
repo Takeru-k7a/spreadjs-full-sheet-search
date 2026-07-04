@@ -37,6 +37,8 @@ export type SpreadSearchProps = {
   zIndex?: number;
   /** 初期表示位置です。未指定時は左上寄りの既定位置に表示します。 */
   initialPosition?: SearchDialogPosition;
+  /** true の場合、Ctrl+F / Cmd+F で検索ダイアログを開きます。 */
+  enableShortcut?: boolean;
   /** true の場合、検索時のシート数・走査範囲・ヒット数を console に出します。 */
   debug?: boolean;
   /** usedRange が空のとき、sheet の行列数から fallback 走査するかどうかです。 */
@@ -73,6 +75,7 @@ export function SpreadSearch({
   maxResults = DEFAULT_MAX_RESULTS,
   zIndex = DEFAULT_Z_INDEX,
   initialPosition,
+  enableShortcut = true,
   debug = false,
   fallbackToSheetRange = true,
   fallbackRowLimit,
@@ -99,6 +102,36 @@ export function SpreadSearch({
     didApplyInitialPositionRef.current = true;
     setSpreadSearchPosition(clampPosition(initialPosition));
   }, [initialPosition]);
+
+  // Ctrl+F / Cmd+F でブラウザ標準検索の代わりに SpreadJS 検索を開きます。
+  useEffect(() => {
+    if (!enableShortcut || typeof window === 'undefined') {
+      return undefined;
+    }
+
+    function handleGlobalKeyDown(event: globalThis.KeyboardEvent): void {
+      const isFindShortcut =
+        (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'f';
+
+      if (isFindShortcut) {
+        event.preventDefault();
+        event.stopPropagation();
+        openSpreadSearch();
+        return;
+      }
+
+      if (state.isOpen && event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        closeSpreadSearch();
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown, true);
+    };
+  }, [enableShortcut, state.isOpen]);
 
   // ダイアログを開いた直後に検索文字列へフォーカスします。
   useEffect(() => {
