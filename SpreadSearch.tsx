@@ -520,18 +520,18 @@ export function SpreadSearch({
                 </Typography>
               </Box>
 
-              <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 230 }}>
-                <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ width: '34%', fontWeight: 700 }}>シート名</TableCell>
-                      <TableCell sx={{ width: 72, fontWeight: 700 }}>セル</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>値</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {state.results && state.results.length > 0 ? (
-                      state.results.map((hit, index) => (
+              {state.results && state.results.length > 0 ? (
+                <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 230 }}>
+                  <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ width: '34%', fontWeight: 700 }}>シート名</TableCell>
+                        <TableCell sx={{ width: 72, fontWeight: 700 }}>セル</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>値</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {state.results.map((hit, index) => (
                         <TableRow
                           hover
                           key={`${hit.sheetIndex}:${hit.row}:${hit.col}:${index}`}
@@ -553,17 +553,11 @@ export function SpreadSearch({
                             {hit.text}
                           </TableCell>
                         </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={3} align="center" sx={{ color: 'text.secondary' }}>
-                          {state.results === null ? '検索結果はまだありません。' : '該当するセルはありません。'}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : null}
             </Box>
           </Stack>
         </Paper>
