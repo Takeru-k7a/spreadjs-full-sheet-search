@@ -19,7 +19,7 @@ export {
   jumpToHit,
   searchAllSheets,
 } from './spreadSearchEngine';
-export type { FindNextResult, JumpResult, SearchAllResult } from './spreadSearchEngine';
+export type { FindNextResult, JumpResult, SearchAllResult, SearchRuntimeOptions } from './spreadSearchEngine';
 export {
   columnIndexToName,
   matchesSearch,

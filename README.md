@@ -94,15 +94,28 @@ type SpreadSearchProps = {
   triggerLabel?: string;   // default: "検索"
   maxResults?: number;     // default: 1000
   zIndex?: number;         // default: 1000
+  debug?: boolean;         // default: false
+  fallbackToSheetRange?: boolean; // default: true
+  fallbackRowLimit?: number;      // default: 5000
+  fallbackColumnLimit?: number;   // default: 200
 };
 ```
 
 `getSpread()` が `null` または `undefined` を返した場合は、エラーにせず「シートが初期化されていません。」と表示します。
 
+`debug` を `true` にすると、検索実行時に `console.info` へ Workbook のシート数、各シートの走査範囲、非空セル数、ヒット数を出します。検索結果が出ない画面では、まず次のように一時的に有効化してください。
+
+```tsx
+<SpreadSearch getSpread={() => spreadRef.current} debug />
+```
+
+`getUsedRange(GC.Spread.Sheets.UsedRangeType.data)` が空、または実データ範囲より狭いホスト画面でも検索できるよう、既定で `fallbackToSheetRange` が有効です。この場合は `sheet.getRowCount()` / `sheet.getColumnCount()` を使って先頭側の走査範囲も含めますが、巨大シートで固まらないよう `fallbackRowLimit` と `fallbackColumnLimit` で上限をかけます。
+
 ## 検索仕様
 
 - 対象は全シート固定です。
-- `sheet.getUsedRange(GC.Spread.Sheets.UsedRangeType.data)` の範囲を行方向に走査します。
+- まず `sheet.getUsedRange(GC.Spread.Sheets.UsedRangeType.data)` の範囲を行方向に走査します。
+- 既定では usedRange に加えて、シート行列数の先頭範囲も fallback 走査します。
 - 検索対象は `sheet.getText(row, col)` の表示文字列です。
 - 非表示の行、列、シートも検索対象に含みます。
 - 全件検索の結果は、検索時点のスナップショットとして保持します。

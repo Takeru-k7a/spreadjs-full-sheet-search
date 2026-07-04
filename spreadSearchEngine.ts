@@ -26,6 +26,17 @@ export type JumpResult = {
   message: string | null;
 };
 
+export type SearchRuntimeOptions = {
+  /** true の場合、検索時の Workbook/Sheet/走査範囲を console に出します。 */
+  debug?: boolean;
+  /** usedRange が空のとき、sheet の行列数を使って fallback 走査します。 */
+  fallbackToSheetRange?: boolean;
+  /** fallback 走査時の最大行数です。巨大シートで固まることを避けます。 */
+  fallbackRowLimit?: number;
+  /** fallback 走査時の最大列数です。巨大シートで固まることを避けます。 */
+  fallbackColumnLimit?: number;
+};
+
 type Workbook = GC.Spread.Sheets.Workbook;
 type Worksheet = GC.Spread.Sheets.Worksheet;
 
@@ -43,6 +54,14 @@ type SheetPosition = {
 };
 
 const DEFAULT_MAX_RESULTS = 1000;
+const DEFAULT_FALLBACK_ROW_LIMIT = 5000;
+const DEFAULT_FALLBACK_COLUMN_LIMIT = 200;
+
+type ScanRangeSnapshot = UsedRangeSnapshot & {
+  source: 'usedRange' | 'usedRangeExpandedBySheetRange' | 'sheetRangeFallback';
+  clippedRows: boolean;
+  clippedColumns: boolean;
+};
 
 // SpreadJS の used range オブジェクトを strict TypeScript で安全に扱うための型ガードです。
 function isUsedRangeSnapshot(value: unknown): value is UsedRangeSnapshot {
@@ -59,14 +78,19 @@ function isUsedRangeSnapshot(value: unknown): value is UsedRangeSnapshot {
   );
 }
 
-function getUsedDataRange(sheet: Worksheet): UsedRangeSnapshot | null {
+function getUsedDataRange(sheet: Worksheet): ScanRangeSnapshot | null {
   const range: unknown = sheet.getUsedRange(GC.Spread.Sheets.UsedRangeType.data);
 
   if (!isUsedRangeSnapshot(range) || range.rowCount <= 0 || range.colCount <= 0) {
     return null;
   }
 
-  return range;
+  return {
+    ...range,
+    source: 'usedRange',
+    clippedRows: false,
+    clippedColumns: false,
+  };
 }
 
 function getSheetName(sheet: Worksheet, fallbackIndex: number): string {
@@ -109,36 +133,141 @@ function getActivePosition(spread: Workbook): SheetPosition {
   };
 }
 
+function normalizeRuntimeOptions(options: SearchRuntimeOptions | undefined): Required<SearchRuntimeOptions> {
+  return {
+    debug: options?.debug ?? false,
+    fallbackToSheetRange: options?.fallbackToSheetRange ?? true,
+    fallbackRowLimit: Math.max(1, Math.floor(options?.fallbackRowLimit ?? DEFAULT_FALLBACK_ROW_LIMIT)),
+    fallbackColumnLimit: Math.max(1, Math.floor(options?.fallbackColumnLimit ?? DEFAULT_FALLBACK_COLUMN_LIMIT)),
+  };
+}
+
+function getSheetScanRange(sheet: Worksheet, options: Required<SearchRuntimeOptions>): ScanRangeSnapshot | null {
+  const usedRange = getUsedDataRange(sheet);
+  if (usedRange) {
+    if (!options.fallbackToSheetRange) {
+      return usedRange;
+    }
+
+    const sheetRowCount = sheet.getRowCount();
+    const sheetColumnCount = sheet.getColumnCount();
+    const fallbackRowCount = Math.min(sheetRowCount, options.fallbackRowLimit);
+    const fallbackColumnCount = Math.min(sheetColumnCount, options.fallbackColumnLimit);
+    const row = Math.min(usedRange.row, 0);
+    const col = Math.min(usedRange.col, 0);
+    const rowEnd = Math.max(usedRange.row + usedRange.rowCount, fallbackRowCount);
+    const colEnd = Math.max(usedRange.col + usedRange.colCount, fallbackColumnCount);
+
+    return {
+      row,
+      col,
+      rowCount: rowEnd - row,
+      colCount: colEnd - col,
+      source: 'usedRangeExpandedBySheetRange',
+      clippedRows: sheetRowCount > fallbackRowCount,
+      clippedColumns: sheetColumnCount > fallbackColumnCount,
+    };
+  }
+
+  if (!options.fallbackToSheetRange) {
+    return null;
+  }
+
+  const sheetRowCount = sheet.getRowCount();
+  const sheetColumnCount = sheet.getColumnCount();
+  const rowCount = Math.min(sheetRowCount, options.fallbackRowLimit);
+  const colCount = Math.min(sheetColumnCount, options.fallbackColumnLimit);
+
+  if (rowCount <= 0 || colCount <= 0) {
+    return null;
+  }
+
+  return {
+    row: 0,
+    col: 0,
+    rowCount,
+    colCount,
+    source: 'sheetRangeFallback',
+    clippedRows: sheetRowCount > rowCount,
+    clippedColumns: sheetColumnCount > colCount,
+  };
+}
+
+function debugLog(options: Required<SearchRuntimeOptions>, message: string, details?: unknown): void {
+  if (!options.debug || typeof console === 'undefined') {
+    return;
+  }
+
+  if (details === undefined) {
+    console.info(`[SpreadSearch] ${message}`);
+    return;
+  }
+
+  console.info(`[SpreadSearch] ${message}`, details);
+}
+
 // getText の表示文字列を対象に、全シートをシート順・行方向順で走査します。
 function* scanWorkbook(
   spread: Workbook,
   query: string,
   options: SearchOptions,
+  runtimeOptions: Required<SearchRuntimeOptions>,
 ): Generator<SearchHit> {
   const sheetCount = spread.getSheetCount();
+
+  debugLog(runtimeOptions, 'scan started', {
+    query,
+    options,
+    sheetCount,
+  });
 
   for (let sheetIndex = 0; sheetIndex < sheetCount; sheetIndex += 1) {
     const sheet = spread.getSheet(sheetIndex);
     if (!sheet) {
+      debugLog(runtimeOptions, 'sheet skipped: missing sheet instance', { sheetIndex });
       continue;
     }
 
-    const usedRange = getUsedDataRange(sheet);
-    if (!usedRange) {
-      continue;
-    }
-
-    const rowEnd = usedRange.row + usedRange.rowCount;
-    const colEnd = usedRange.col + usedRange.colCount;
     const sheetName = getSheetName(sheet, sheetIndex);
+    const scanRange = getSheetScanRange(sheet, runtimeOptions);
+    if (!scanRange) {
+      debugLog(runtimeOptions, 'sheet skipped: no used range and no fallback range', {
+        sheetIndex,
+        sheetName,
+        rowCount: sheet.getRowCount(),
+        columnCount: sheet.getColumnCount(),
+      });
+      continue;
+    }
 
-    for (let row = usedRange.row; row < rowEnd; row += 1) {
-      for (let col = usedRange.col; col < colEnd; col += 1) {
+    const rowEnd = scanRange.row + scanRange.rowCount;
+    const colEnd = scanRange.col + scanRange.colCount;
+    let scannedCells = 0;
+    let nonEmptyCells = 0;
+    let hitCount = 0;
+
+    debugLog(runtimeOptions, 'sheet scan range', {
+      sheetIndex,
+      sheetName,
+      scanRange,
+      sheetRowCount: sheet.getRowCount(),
+      sheetColumnCount: sheet.getColumnCount(),
+    });
+
+    for (let row = scanRange.row; row < rowEnd; row += 1) {
+      for (let col = scanRange.col; col < colEnd; col += 1) {
+        scannedCells += 1;
         const text = String(sheet.getText(row, col) ?? '');
-        if (text === '' || !matchesSearch(text, query, options)) {
+        if (text === '') {
           continue;
         }
 
+        nonEmptyCells += 1;
+        if (!matchesSearch(text, query, options)) {
+          continue;
+        }
+
+        hitCount += 1;
         yield {
           sheetIndex,
           sheetName,
@@ -149,6 +278,14 @@ function* scanWorkbook(
         };
       }
     }
+
+    debugLog(runtimeOptions, 'sheet scan finished', {
+      sheetIndex,
+      sheetName,
+      scannedCells,
+      nonEmptyCells,
+      hitCount,
+    });
   }
 }
 
@@ -158,8 +295,12 @@ export function searchAllSheets(
   query: string,
   options: SearchOptions,
   maxResults?: number,
+  runtimeOptions?: SearchRuntimeOptions,
 ): SearchAllResult {
+  const normalizedRuntimeOptions = normalizeRuntimeOptions(runtimeOptions);
+
   if (query.length === 0) {
+    debugLog(normalizedRuntimeOptions, 'search aborted: empty query');
     return {
       results: [],
       truncated: false,
@@ -170,10 +311,14 @@ export function searchAllSheets(
   const limit = normalizeMaxResults(maxResults);
   const results: SearchHit[] = [];
 
-  for (const hit of scanWorkbook(spread, query, options)) {
+  for (const hit of scanWorkbook(spread, query, options, normalizedRuntimeOptions)) {
     results.push(hit);
 
     if (results.length >= limit) {
+      debugLog(normalizedRuntimeOptions, 'search truncated', {
+        limit,
+        results,
+      });
       return {
         results,
         truncated: true,
@@ -181,6 +326,10 @@ export function searchAllSheets(
       };
     }
   }
+
+  debugLog(normalizedRuntimeOptions, 'search finished', {
+    resultCount: results.length,
+  });
 
   return {
     results,
@@ -194,8 +343,12 @@ export function findNextInWorkbook(
   spread: Workbook,
   query: string,
   options: SearchOptions,
+  runtimeOptions?: SearchRuntimeOptions,
 ): FindNextResult {
+  const normalizedRuntimeOptions = normalizeRuntimeOptions(runtimeOptions);
+
   if (query.length === 0) {
+    debugLog(normalizedRuntimeOptions, 'find next aborted: empty query');
     return {
       hit: null,
       message: '検索文字列を入力してください。',
@@ -205,17 +358,28 @@ export function findNextInWorkbook(
   const origin = getActivePosition(spread);
   let firstWrappedHit: SearchHit | null = null;
 
-  for (const hit of scanWorkbook(spread, query, options)) {
+  debugLog(normalizedRuntimeOptions, 'find next started', {
+    query,
+    options,
+    origin,
+  });
+
+  for (const hit of scanWorkbook(spread, query, options, normalizedRuntimeOptions)) {
     if (isAfterPosition(hit, origin)) {
+      debugLog(normalizedRuntimeOptions, 'find next hit', hit);
       return { hit, message: null };
     }
 
     firstWrappedHit ??= hit;
   }
 
-  return firstWrappedHit
-    ? { hit: firstWrappedHit, message: null }
-    : { hit: null, message: '見つかりません。' };
+  if (firstWrappedHit) {
+    debugLog(normalizedRuntimeOptions, 'find next wrapped hit', firstWrappedHit);
+    return { hit: firstWrappedHit, message: null };
+  }
+
+  debugLog(normalizedRuntimeOptions, 'find next finished: no hit');
+  return { hit: null, message: '見つかりません。' };
 }
 
 // 結果行クリックや次を検索で使う共通ジャンプ処理です。

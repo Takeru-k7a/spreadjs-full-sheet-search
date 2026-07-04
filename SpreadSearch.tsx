@@ -19,7 +19,7 @@ import {
   setSelectedSearchIndex,
   useSpreadSearchStore,
 } from './searchStore';
-import { findNextInWorkbook, jumpToHit, searchAllSheets } from './spreadSearchEngine';
+import { findNextInWorkbook, jumpToHit, searchAllSheets, type SearchRuntimeOptions } from './spreadSearchEngine';
 import styles from './spreadSearch.module.css';
 
 export type SpreadSearchProps = {
@@ -33,6 +33,14 @@ export type SpreadSearchProps = {
   maxResults?: number;
   /** 既存画面より前面に出すための z-index です。 */
   zIndex?: number;
+  /** true の場合、検索時のシート数・走査範囲・ヒット数を console に出します。 */
+  debug?: boolean;
+  /** usedRange が空のとき、sheet の行列数から fallback 走査するかどうかです。 */
+  fallbackToSheetRange?: boolean;
+  /** fallback 走査時に見る最大行数です。 */
+  fallbackRowLimit?: number;
+  /** fallback 走査時に見る最大列数です。 */
+  fallbackColumnLimit?: number;
 };
 
 type DialogPosition = {
@@ -65,12 +73,22 @@ export function SpreadSearch({
   triggerLabel = '検索',
   maxResults = DEFAULT_MAX_RESULTS,
   zIndex = DEFAULT_Z_INDEX,
+  debug = false,
+  fallbackToSheetRange = true,
+  fallbackRowLimit,
+  fallbackColumnLimit,
 }: SpreadSearchProps) {
   const state = useSpreadSearchStore();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const queryInputRef = useRef<HTMLInputElement | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
   const [position, setPosition] = useState<DialogPosition>({ x: 96, y: 72 });
+  const runtimeOptions: SearchRuntimeOptions = {
+    debug,
+    fallbackToSheetRange,
+    fallbackRowLimit,
+    fallbackColumnLimit,
+  };
 
   // ダイアログを開いた直後に検索文字列へフォーカスします。
   useEffect(() => {
@@ -133,6 +151,9 @@ export function SpreadSearch({
   function getReadySpread(): GC.Spread.Sheets.Workbook | null {
     const spread = getSpread();
     if (!spread) {
+      if (debug && typeof console !== 'undefined') {
+        console.info('[SpreadSearch] getSpread returned null or undefined');
+      }
       setSearchMessage('シートが初期化されていません。');
       return null;
     }
@@ -147,7 +168,7 @@ export function SpreadSearch({
       return;
     }
 
-    const result = searchAllSheets(spread, state.query, state.options, maxResults);
+    const result = searchAllSheets(spread, state.query, state.options, maxResults, runtimeOptions);
     setAllSearchResult({
       query: state.query,
       options: state.options,
@@ -164,7 +185,7 @@ export function SpreadSearch({
       return;
     }
 
-    const result = findNextInWorkbook(spread, state.query, state.options);
+    const result = findNextInWorkbook(spread, state.query, state.options, runtimeOptions);
     if (!result.hit) {
       setSearchMessage(result.message);
       return;
