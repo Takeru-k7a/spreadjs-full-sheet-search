@@ -104,7 +104,7 @@ function ExistingScreen() {
 }
 ```
 
-`closeSpreadSearch()`、`toggleSpreadSearch()`、`setSpreadSearchPosition()`、`resetSpreadSearchPosition()` も export しています。
+`closeSpreadSearch()`、`toggleSpreadSearch()`、`setSpreadSearchPosition()`、`resetSpreadSearchPosition()`、`setSpreadSearchSize()`、`resetSpreadSearchSize()` も export しています。
 
 ## Props
 
@@ -115,7 +115,8 @@ type SpreadSearchProps = {
   triggerLabel?: string;   // default: "検索"
   maxResults?: number;     // default: 1000
   zIndex?: number;         // default: 1000
-  initialPosition?: { x: number; y: number };
+  initialPosition?: { x: number; y: number }; // default: browser center
+  initialSize?: { width: number; height: number }; // default: 560 x 520
   enableShortcut?: boolean; // default: true
   debug?: boolean;         // default: false
   fallbackToSheetRange?: boolean; // default: true
@@ -126,13 +127,19 @@ type SpreadSearchProps = {
 
 `getSpread()` が `null` または `undefined` を返した場合は、エラーにせず「シートが初期化されていません。」と表示します。
 
-検索ダイアログはタイトルバーをドラッグして移動できます。移動後の位置はストアに残るため、閉じて再度開いても同じ位置に表示されます。初期位置を指定したい場合は次のようにします。
+検索ダイアログは既定でブラウザ中央に表示します。タイトルバーをドラッグして移動でき、右下ハンドルをドラッグしてリサイズできます。移動後の位置と変更後のサイズはストアに残るため、閉じて再度開いても同じ状態で表示されます。初期位置を指定したい場合は次のようにします。
 
 ```tsx
 <SpreadSearch getSpread={() => spreadRef.current} initialPosition={{ x: 320, y: 80 }} />
 ```
 
-ホスト側のボタンやショートカットから位置を変える場合は `setSpreadSearchPosition({ x, y })`、既定位置に戻す場合は `resetSpreadSearchPosition()` を使います。閉じる場合はダイアログ右上の `×`、下部の「閉じる」、Esc キー、または `closeSpreadSearch()` を使えます。
+初期サイズを指定したい場合は次のようにします。
+
+```tsx
+<SpreadSearch getSpread={() => spreadRef.current} initialSize={{ width: 640, height: 560 }} />
+```
+
+ホスト側のボタンやショートカットから位置を変える場合は `setSpreadSearchPosition({ x, y })`、サイズを変える場合は `setSpreadSearchSize({ width, height })` を使います。既定値に戻す場合は `resetSpreadSearchPosition()` と `resetSpreadSearchSize()` を使います。閉じる場合はダイアログ右上の `×`、下部の「閉じる」、Esc キー、または `closeSpreadSearch()` を使えます。
 
 `debug` を `true` にすると、検索実行時に `console.info` へ Workbook のシート数、各シートの走査範囲、非空セル数、ヒット数を出します。検索結果が出ない画面では、まず次のように一時的に有効化してください。
 
@@ -148,7 +155,8 @@ type SpreadSearchProps = {
 - まず `sheet.getUsedRange(GC.Spread.Sheets.UsedRangeType.data)` の範囲を行方向に走査します。
 - 既定では usedRange に加えて、シート行列数の先頭範囲も fallback 走査します。
 - 検索対象は `sheet.getText(row, col)` の表示文字列です。
-- `sheet.bindColumns()` の列定義に `name` がある列は、結果一覧のセル欄を `カラム名[行インデックス]` 形式で表示します。例: `customerName[3]`。列名がない場合は従来どおり `D4` のような A1 形式です。
+- 検索結果は `シートインデックス`、`カラムタイトル+行数`、`値` の 3 列で表示します。
+- `カラムタイトル+行数` は、`sheet.bindColumns()` の `displayName`、`name`、列ヘッダー文字列、A/B/C 形式の順でカラムタイトルを決め、`カラムタイトル[行番号]` として表示します。例: `customerName[4]`。
 - 非表示の行、列、シートも検索対象に含みます。
 - 全件検索の結果は、検索時点のスナップショットとして保持します。
 - 結果行クリック時は、再検索せず記録済みのシート、行、列へジャンプします。

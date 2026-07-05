@@ -11,11 +11,13 @@ export {
   closeSpreadSearch,
   openSpreadSearch,
   resetSpreadSearchPosition,
+  resetSpreadSearchSize,
   setSpreadSearchPosition,
+  setSpreadSearchSize,
   toggleSpreadSearch,
   useSpreadSearchStore,
 } from './searchStore';
-export type { SearchDialogPosition, SearchHit, SearchOptions, SearchState } from './searchStore';
+export type { SearchDialogPosition, SearchDialogSize, SearchHit, SearchOptions, SearchState } from './searchStore';
 export {
   findNextInWorkbook,
   jumpToHit,

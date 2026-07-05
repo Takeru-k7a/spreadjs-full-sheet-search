@@ -8,7 +8,7 @@
 
 import * as GC from '@grapecity/spread-sheets';
 import type { SearchHit, SearchOptions } from './searchStore';
-import { matchesSearch, toA1Address } from './textNormalize';
+import { columnIndexToName, matchesSearch, toA1Address } from './textNormalize';
 
 export type SearchAllResult = {
   results: SearchHit[];
@@ -124,28 +124,45 @@ function getBoundColumns(sheet: Worksheet): BoundColumnDefinition[] {
   return columns.map((column) => (isBoundColumnDefinition(column) ? column : {}));
 }
 
-function getBoundColumnName(boundColumns: BoundColumnDefinition[], columnIndex: number): string | null {
+function getBoundColumnTitle(boundColumns: BoundColumnDefinition[], columnIndex: number): string | null {
   const column = boundColumns[columnIndex];
   if (!column) {
     return null;
   }
 
-  const name = typeof column.name === 'string' ? column.name : '';
-  if (name) {
-    return name;
+  const displayName = typeof column.displayName === 'string' ? column.displayName : '';
+  if (displayName) {
+    return displayName;
   }
 
-  const displayName = typeof column.displayName === 'string' ? column.displayName : '';
-  return displayName || null;
+  const name = typeof column.name === 'string' ? column.name : '';
+  return name || null;
 }
 
-function toResultAddress(row: number, col: number, boundColumns: BoundColumnDefinition[]): string {
-  const boundColumnName = getBoundColumnName(boundColumns, col);
-  if (boundColumnName) {
-    return `${boundColumnName}[${row}]`;
+function getColumnHeaderText(sheet: Worksheet, columnIndex: number): string | null {
+  const sheetWithHeaderText = sheet as Worksheet & {
+    getText: (row: number, col: number, sheetArea?: unknown) => unknown;
+  };
+
+  try {
+    const text = sheetWithHeaderText.getText(0, columnIndex, GC.Spread.Sheets.SheetArea.colHeader);
+    return typeof text === 'string' && text ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+function getColumnTitle(sheet: Worksheet, columnIndex: number, boundColumns: BoundColumnDefinition[]): string {
+  const boundColumnTitle = getBoundColumnTitle(boundColumns, columnIndex);
+  if (boundColumnTitle) {
+    return boundColumnTitle;
   }
 
-  return toA1Address(row, col);
+  return getColumnHeaderText(sheet, columnIndex) ?? columnIndexToName(columnIndex);
+}
+
+function toPositionLabel(columnTitle: string, rowNumber: number): string {
+  return `${columnTitle}[${rowNumber}]`;
 }
 
 function normalizeMaxResults(maxResults: number | undefined): number {
@@ -320,12 +337,17 @@ function* scanWorkbook(
         }
 
         hitCount += 1;
+        const columnTitle = getColumnTitle(sheet, col, boundColumns);
+        const rowNumber = row + 1;
         yield {
           sheetIndex,
           sheetName,
           row,
           col,
-          address: toResultAddress(row, col, boundColumns),
+          address: toA1Address(row, col),
+          columnTitle,
+          rowNumber,
+          positionLabel: toPositionLabel(columnTitle, rowNumber),
           text,
         };
       }

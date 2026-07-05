@@ -20,6 +20,9 @@ export type SearchHit = {
   row: number;
   col: number;
   address: string;
+  columnTitle: string;
+  rowNumber: number;
+  positionLabel: string;
   text: string;
 };
 
@@ -28,9 +31,15 @@ export type SearchDialogPosition = {
   y: number;
 };
 
+export type SearchDialogSize = {
+  width: number;
+  height: number;
+};
+
 export type SearchState = {
   isOpen: boolean;
   position: SearchDialogPosition;
+  size: SearchDialogSize;
   query: string;
   options: SearchOptions;
   results: SearchHit[] | null;
@@ -54,9 +63,15 @@ const defaultPosition: SearchDialogPosition = {
   y: 72,
 };
 
+const defaultSize: SearchDialogSize = {
+  width: 560,
+  height: 520,
+};
+
 let currentState: SearchState = {
   isOpen: false,
   position: defaultPosition,
+  size: defaultSize,
   query: '',
   options: defaultOptions,
   results: null,
@@ -70,6 +85,10 @@ const listeners = new Set<Listener>();
 
 function arePositionsEqual(a: SearchDialogPosition, b: SearchDialogPosition): boolean {
   return a.x === b.x && a.y === b.y;
+}
+
+function areSizesEqual(a: SearchDialogSize, b: SearchDialogSize): boolean {
+  return a.width === b.width && a.height === b.height;
 }
 
 // currentState を差し替えたあと、購読中の React コンポーネントへ更新通知します。
@@ -145,6 +164,26 @@ export function resetSpreadSearchPosition(): void {
     }
 
     return { ...state, position: defaultPosition };
+  });
+}
+
+export function setSpreadSearchSize(size: SearchDialogSize): void {
+  updateState((state) => {
+    if (areSizesEqual(state.size, size)) {
+      return state;
+    }
+
+    return { ...state, size };
+  });
+}
+
+export function resetSpreadSearchSize(): void {
+  updateState((state) => {
+    if (areSizesEqual(state.size, defaultSize)) {
+      return state;
+    }
+
+    return { ...state, size: defaultSize };
   });
 }
 

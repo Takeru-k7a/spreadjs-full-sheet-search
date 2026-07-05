@@ -35,6 +35,8 @@ import {
   setSearchQuery,
   setSelectedSearchIndex,
   setSpreadSearchPosition,
+  setSpreadSearchSize,
+  type SearchDialogSize,
   type SearchDialogPosition,
   useSpreadSearchStore,
 } from './searchStore';
@@ -51,8 +53,10 @@ export type SpreadSearchProps = {
   maxResults?: number;
   /** 既存画面より前面に出すための z-index です。 */
   zIndex?: number;
-  /** 初期表示位置です。未指定時は左上寄りの既定位置に表示します。 */
+  /** 初期表示位置です。未指定時はブラウザ中央に表示します。 */
   initialPosition?: SearchDialogPosition;
+  /** 初期表示サイズです。未指定時は検索結果を見やすい既定サイズを使います。 */
+  initialSize?: SearchDialogSize;
   /** true の場合、Ctrl+F / Cmd+F で検索ダイアログを開きます。 */
   enableShortcut?: boolean;
   /** true の場合、検索時のシート数・走査範囲・ヒット数を console に出します。 */
@@ -73,8 +77,18 @@ type DragState = {
   originY: number;
 };
 
+type ResizeState = {
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  originWidth: number;
+  originHeight: number;
+};
+
 const DEFAULT_MAX_RESULTS = 1000;
 const DEFAULT_Z_INDEX = 1000;
+const MIN_DIALOG_WIDTH = 360;
+const MIN_DIALOG_HEIGHT = 300;
 
 /**
  * ホスト画面に 1 タグ追加するためのコンポーネントです。
@@ -87,6 +101,7 @@ export function SpreadSearch({
   maxResults = DEFAULT_MAX_RESULTS,
   zIndex = DEFAULT_Z_INDEX,
   initialPosition,
+  initialSize,
   enableShortcut = true,
   debug = false,
   fallbackToSheetRange = true,
@@ -100,7 +115,12 @@ export function SpreadSearch({
   const dragCleanupRef = useRef<(() => void) | null>(null);
   const dragFrameRef = useRef<number | null>(null);
   const pendingDragPositionRef = useRef<SearchDialogPosition | null>(null);
+  const resizeStateRef = useRef<ResizeState | null>(null);
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
+  const resizeFrameRef = useRef<number | null>(null);
+  const pendingResizeSizeRef = useRef<SearchDialogSize | null>(null);
   const didApplyInitialPositionRef = useRef(false);
+  const didApplyInitialSizeRef = useRef(false);
   const runtimeOptions: SearchRuntimeOptions = {
     debug,
     fallbackToSheetRange,
@@ -108,15 +128,27 @@ export function SpreadSearch({
     fallbackColumnLimit,
   };
 
-  // ホスト側が初期位置を指定した場合、一度だけストアへ反映します。
+  // ホスト側が初期サイズを指定した場合、一度だけストアへ反映します。
   useEffect(() => {
-    if (!initialPosition || didApplyInitialPositionRef.current) {
+    if (!initialSize || didApplyInitialSizeRef.current) {
+      return;
+    }
+
+    didApplyInitialSizeRef.current = true;
+    setSpreadSearchSize(clampSize(initialSize));
+  }, [initialSize]);
+
+  // 初期位置は既定でブラウザ中央に置き、ホスト側指定があればそれを優先します。
+  useEffect(() => {
+    if (didApplyInitialPositionRef.current || typeof window === 'undefined') {
       return;
     }
 
     didApplyInitialPositionRef.current = true;
-    setSpreadSearchPosition(clampPosition(initialPosition));
-  }, [initialPosition]);
+    const size = initialSize ? clampSize(initialSize) : state.size;
+    const position = initialPosition ?? getCenteredPosition(size);
+    setSpreadSearchPosition(clampPosition(position, size));
+  }, [initialPosition, initialSize, state.size]);
 
   // Ctrl+F / Cmd+F でブラウザ標準検索の代わりに SpreadJS 検索を開きます。
   useEffect(() => {
@@ -160,22 +192,49 @@ export function SpreadSearch({
   useEffect(() => {
     return () => {
       clearDragListeners();
+      clearResizeListeners();
     };
   }, []);
 
-  function clampPosition(nextPosition: SearchDialogPosition): SearchDialogPosition {
+  function clampPosition(nextPosition: SearchDialogPosition, size = state.size): SearchDialogPosition {
     if (typeof window === 'undefined') {
       return nextPosition;
     }
 
     const dialog = dialogRef.current;
-    const width = dialog?.offsetWidth ?? 420;
-    const height = dialog?.offsetHeight ?? 360;
+    const width = dialog?.offsetWidth ?? size.width;
+    const height = dialog?.offsetHeight ?? size.height;
     const margin = 8;
 
     return {
       x: Math.min(Math.max(nextPosition.x, margin), Math.max(window.innerWidth - width - margin, margin)),
       y: Math.min(Math.max(nextPosition.y, margin), Math.max(window.innerHeight - height - margin, margin)),
+    };
+  }
+
+  function clampSize(nextSize: SearchDialogSize, position = state.position): SearchDialogSize {
+    if (typeof window === 'undefined') {
+      return nextSize;
+    }
+
+    const margin = 8;
+    const maxWidth = Math.max(window.innerWidth - position.x - margin, MIN_DIALOG_WIDTH);
+    const maxHeight = Math.max(window.innerHeight - position.y - margin, MIN_DIALOG_HEIGHT);
+
+    return {
+      width: Math.min(Math.max(nextSize.width, MIN_DIALOG_WIDTH), maxWidth),
+      height: Math.min(Math.max(nextSize.height, MIN_DIALOG_HEIGHT), maxHeight),
+    };
+  }
+
+  function getCenteredPosition(size: SearchDialogSize): SearchDialogPosition {
+    if (typeof window === 'undefined') {
+      return { x: 96, y: 72 };
+    }
+
+    return {
+      x: Math.round((window.innerWidth - size.width) / 2),
+      y: Math.round((window.innerHeight - size.height) / 2),
     };
   }
 
@@ -205,6 +264,36 @@ export function SpreadSearch({
       pendingDragPositionRef.current = null;
       if (pendingPosition) {
         setSpreadSearchPosition(pendingPosition);
+      }
+    });
+  }
+
+  function clearResizeListeners(flushPendingSize = false): void {
+    const pendingSize = pendingResizeSizeRef.current;
+    resizeCleanupRef.current?.();
+    resizeCleanupRef.current = null;
+    if (resizeFrameRef.current !== null && typeof window !== 'undefined') {
+      window.cancelAnimationFrame(resizeFrameRef.current);
+      resizeFrameRef.current = null;
+    }
+    pendingResizeSizeRef.current = null;
+    if (flushPendingSize && pendingSize) {
+      setSpreadSearchSize(pendingSize);
+    }
+  }
+
+  function scheduleResizeSize(nextSize: SearchDialogSize): void {
+    pendingResizeSizeRef.current = nextSize;
+    if (resizeFrameRef.current !== null) {
+      return;
+    }
+
+    resizeFrameRef.current = window.requestAnimationFrame(() => {
+      resizeFrameRef.current = null;
+      const pendingSize = pendingResizeSizeRef.current;
+      pendingResizeSizeRef.current = null;
+      if (pendingSize) {
+        setSpreadSearchSize(pendingSize);
       }
     });
   }
@@ -259,6 +348,57 @@ export function SpreadSearch({
     window.addEventListener('pointerup', handleWindowPointerEnd, true);
     window.addEventListener('pointercancel', handleWindowPointerEnd, true);
     dragCleanupRef.current = () => {
+      window.removeEventListener('pointermove', handleWindowPointerMove, true);
+      window.removeEventListener('pointerup', handleWindowPointerEnd, true);
+      window.removeEventListener('pointercancel', handleWindowPointerEnd, true);
+    };
+  }
+
+  function handleResizePointerDown(event: PointerEvent<HTMLDivElement>): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    clearResizeListeners();
+    resizeStateRef.current = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      originWidth: state.size.width,
+      originHeight: state.size.height,
+    };
+
+    function handleWindowPointerMove(nativeEvent: globalThis.PointerEvent): void {
+      const resizeState = resizeStateRef.current;
+      if (!resizeState || resizeState.pointerId !== nativeEvent.pointerId) {
+        return;
+      }
+
+      nativeEvent.preventDefault();
+      scheduleResizeSize(
+        clampSize({
+          width: resizeState.originWidth + nativeEvent.clientX - resizeState.startClientX,
+          height: resizeState.originHeight + nativeEvent.clientY - resizeState.startClientY,
+        }),
+      );
+    }
+
+    function handleWindowPointerEnd(nativeEvent: globalThis.PointerEvent): void {
+      const resizeState = resizeStateRef.current;
+      if (resizeState && resizeState.pointerId !== nativeEvent.pointerId) {
+        return;
+      }
+
+      resizeStateRef.current = null;
+      clearResizeListeners(true);
+    }
+
+    window.addEventListener('pointermove', handleWindowPointerMove, true);
+    window.addEventListener('pointerup', handleWindowPointerEnd, true);
+    window.addEventListener('pointercancel', handleWindowPointerEnd, true);
+    resizeCleanupRef.current = () => {
       window.removeEventListener('pointermove', handleWindowPointerMove, true);
       window.removeEventListener('pointerup', handleWindowPointerEnd, true);
       window.removeEventListener('pointercancel', handleWindowPointerEnd, true);
@@ -346,6 +486,8 @@ export function SpreadSearch({
   const dialogStyle: CSSProperties = {
     left: state.position.x,
     top: state.position.y,
+    width: state.size.width,
+    height: state.size.height,
     zIndex,
   };
 
@@ -354,6 +496,7 @@ export function SpreadSearch({
   };
 
   const resultCount = state.results?.length ?? 0;
+  const resultTableMaxHeight = Math.max(120, state.size.height - 286);
 
   return (
     <>
@@ -390,8 +533,13 @@ export function SpreadSearch({
             left: dialogStyle.left,
             top: dialogStyle.top,
             zIndex: dialogStyle.zIndex,
-            width: 'min(430px, calc(100vw - 16px))',
+            width: dialogStyle.width,
+            height: dialogStyle.height,
+            minWidth: MIN_DIALOG_WIDTH,
+            minHeight: MIN_DIALOG_HEIGHT,
+            maxWidth: 'calc(100vw - 16px)',
             maxHeight: 'calc(100vh - 16px)',
+            boxSizing: 'border-box',
             overflow: 'hidden',
             border: 1,
             borderColor: 'divider',
@@ -521,12 +669,12 @@ export function SpreadSearch({
               </Box>
 
               {state.results && state.results.length > 0 ? (
-                <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 230 }}>
+                <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: resultTableMaxHeight }}>
                   <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
                     <TableHead>
                       <TableRow>
-                        <TableCell sx={{ width: '34%', fontWeight: 700 }}>シート名</TableCell>
-                        <TableCell sx={{ width: 72, fontWeight: 700 }}>セル</TableCell>
+                        <TableCell sx={{ width: 112, fontWeight: 700 }}>シートインデックス</TableCell>
+                        <TableCell sx={{ width: '42%', fontWeight: 700 }}>カラム+行数</TableCell>
                         <TableCell sx={{ fontWeight: 700 }}>値</TableCell>
                       </TableRow>
                     </TableHead>
@@ -543,9 +691,14 @@ export function SpreadSearch({
                             title={hit.sheetName}
                             sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                           >
-                            {hit.sheetName}
+                            {hit.sheetIndex}
                           </TableCell>
-                          <TableCell>{hit.address}</TableCell>
+                          <TableCell
+                            title={hit.positionLabel}
+                            sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          >
+                            {hit.positionLabel}
+                          </TableCell>
                           <TableCell
                             title={hit.text}
                             sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
@@ -560,6 +713,30 @@ export function SpreadSearch({
               ) : null}
             </Box>
           </Stack>
+          <Box
+            aria-hidden="true"
+            onPointerDown={handleResizePointerDown}
+            sx={{
+              position: 'absolute',
+              right: 0,
+              bottom: 0,
+              width: 18,
+              height: 18,
+              cursor: 'nwse-resize',
+              touchAction: 'none',
+              '&::after': {
+                content: '""',
+                position: 'absolute',
+                right: 4,
+                bottom: 4,
+                width: 8,
+                height: 8,
+                borderRight: 2,
+                borderBottom: 2,
+                borderColor: 'text.disabled',
+              },
+            }}
+          />
         </Paper>
       ) : null}
     </>
