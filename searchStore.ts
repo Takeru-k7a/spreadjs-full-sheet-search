@@ -1,0 +1,232 @@
+'use client';
+
+/**
+ * このファイルは検索 UI の状態を保持する同梱ミニストアです。
+ * React 以外の状態管理ライブラリを使わず、モジュールスコープの singleton と
+ * useSyncExternalStore だけで、開閉状態、検索条件、結果一覧、選択行、メッセージを管理します。
+ */
+
+import { useSyncExternalStore } from 'react';
+
+export type SearchOptions = {
+  exactMatch: boolean;
+  matchByte: boolean;
+  matchCase: boolean;
+};
+
+export type SearchHit = {
+  sheetIndex: number;
+  sheetName: string;
+  row: number;
+  col: number;
+  address: string;
+  columnTitle: string;
+  rowNumber: number;
+  positionLabel: string;
+  text: string;
+};
+
+export type SearchDialogPosition = {
+  x: number;
+  y: number;
+};
+
+export type SearchDialogSize = {
+  width: number;
+  height: number;
+};
+
+export type SearchState = {
+  isOpen: boolean;
+  position: SearchDialogPosition;
+  size: SearchDialogSize;
+  query: string;
+  options: SearchOptions;
+  results: SearchHit[] | null;
+  truncated: boolean;
+  searchedAt: number | null;
+  selectedIndex: number | null;
+  message: string | null;
+};
+
+type Listener = () => void;
+
+// Excel 相当の初期値として、完全一致・半角全角区別・大文字小文字区別はすべて OFF です。
+const defaultOptions: SearchOptions = {
+  exactMatch: false,
+  matchByte: false,
+  matchCase: false,
+};
+
+const defaultPosition: SearchDialogPosition = {
+  x: 96,
+  y: 72,
+};
+
+const defaultSize: SearchDialogSize = {
+  width: 560,
+  height: 520,
+};
+
+let currentState: SearchState = {
+  isOpen: false,
+  position: defaultPosition,
+  size: defaultSize,
+  query: '',
+  options: defaultOptions,
+  results: null,
+  truncated: false,
+  searchedAt: null,
+  selectedIndex: null,
+  message: null,
+};
+
+const listeners = new Set<Listener>();
+
+function arePositionsEqual(a: SearchDialogPosition, b: SearchDialogPosition): boolean {
+  return a.x === b.x && a.y === b.y;
+}
+
+function areSizesEqual(a: SearchDialogSize, b: SearchDialogSize): boolean {
+  return a.width === b.width && a.height === b.height;
+}
+
+// currentState を差し替えたあと、購読中の React コンポーネントへ更新通知します。
+function emitChange(): void {
+  listeners.forEach((listener) => listener());
+}
+
+function updateState(updater: (state: SearchState) => SearchState): void {
+  const nextState = updater(currentState);
+  if (Object.is(nextState, currentState)) {
+    return;
+  }
+
+  currentState = nextState;
+  emitChange();
+}
+
+function isSearchDialogPosition(value: unknown): value is SearchDialogPosition {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.x === 'number' && typeof candidate.y === 'number';
+}
+
+export function subscribeSearchStore(listener: Listener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+export function getSearchSnapshot(): SearchState {
+  return currentState;
+}
+
+export function useSpreadSearchStore(): SearchState {
+  return useSyncExternalStore(subscribeSearchStore, getSearchSnapshot, getSearchSnapshot);
+}
+
+// ここから下はホストアプリや SpreadSearch.tsx から呼ぶ状態更新 API です。
+export function openSpreadSearch(position?: SearchDialogPosition): void {
+  updateState((state) => ({
+    ...state,
+    isOpen: true,
+    position: isSearchDialogPosition(position) ? position : state.position,
+  }));
+}
+
+export function closeSpreadSearch(): void {
+  updateState((state) => ({ ...state, isOpen: false }));
+}
+
+export function toggleSpreadSearch(): void {
+  updateState((state) => ({ ...state, isOpen: !state.isOpen }));
+}
+
+export function setSpreadSearchPosition(position: SearchDialogPosition): void {
+  updateState((state) => {
+    if (arePositionsEqual(state.position, position)) {
+      return state;
+    }
+
+    return { ...state, position };
+  });
+}
+
+export function resetSpreadSearchPosition(): void {
+  updateState((state) => {
+    if (arePositionsEqual(state.position, defaultPosition)) {
+      return state;
+    }
+
+    return { ...state, position: defaultPosition };
+  });
+}
+
+export function setSpreadSearchSize(size: SearchDialogSize): void {
+  updateState((state) => {
+    if (areSizesEqual(state.size, size)) {
+      return state;
+    }
+
+    return { ...state, size };
+  });
+}
+
+export function resetSpreadSearchSize(): void {
+  updateState((state) => {
+    if (areSizesEqual(state.size, defaultSize)) {
+      return state;
+    }
+
+    return { ...state, size: defaultSize };
+  });
+}
+
+export function setSearchQuery(query: string): void {
+  updateState((state) => ({ ...state, query }));
+}
+
+export function setSearchOption<Key extends keyof SearchOptions>(
+  key: Key,
+  value: SearchOptions[Key],
+): void {
+  updateState((state) => ({
+    ...state,
+    options: {
+      ...state.options,
+      [key]: value,
+    },
+  }));
+}
+
+export function setAllSearchResult(args: {
+  query: string;
+  options: SearchOptions;
+  results: SearchHit[];
+  truncated: boolean;
+  message: string | null;
+}): void {
+  updateState((state) => ({
+    ...state,
+    query: args.query,
+    options: { ...args.options },
+    results: args.results,
+    truncated: args.truncated,
+    searchedAt: Date.now(),
+    selectedIndex: null,
+    message: args.message,
+  }));
+}
+
+export function setSelectedSearchIndex(selectedIndex: number | null): void {
+  updateState((state) => ({ ...state, selectedIndex }));
+}
+
+export function setSearchMessage(message: string | null): void {
+  updateState((state) => ({ ...state, message }));
+}
